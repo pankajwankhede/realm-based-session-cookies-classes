@@ -3,8 +3,6 @@ package com.example.sso.security;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.session.web.http.CookieSerializer;
-import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.session.web.http.HttpSessionIdResolver;
 import org.springframework.util.StringUtils;
 
@@ -14,29 +12,19 @@ import java.util.List;
 public class RealmCookieHttpSessionIdResolver implements HttpSessionIdResolver {
 
     private final RealmResolver realmResolver;
-    private final CookieSerializer cookieSerializer;
-    private final String cookiePrefix;
 
-    public RealmCookieHttpSessionIdResolver(
-            RealmResolver realmResolver,
-            CookieSerializer cookieSerializer,
-            String cookiePrefix
-    ) {
+    public RealmCookieHttpSessionIdResolver(RealmResolver realmResolver) {
         this.realmResolver = realmResolver;
-        this.cookieSerializer = cookieSerializer;
-        this.cookiePrefix = cookiePrefix;
     }
 
     @Override
     public List<String> resolveSessionIds(HttpServletRequest request) {
 
         String realm = normalize(realmResolver.resolveRealm(request));
-        String cookieName = cookiePrefix + "_" + realm;
+        String cookieName = "SSOSESSION_" + realm;
 
         Cookie[] cookies = request.getCookies();
-        if (cookies == null) {
-            return Collections.emptyList();
-        }
+        if (cookies == null) return Collections.emptyList();
 
         for (Cookie cookie : cookies) {
             if (cookieName.equals(cookie.getName())
@@ -48,38 +36,40 @@ public class RealmCookieHttpSessionIdResolver implements HttpSessionIdResolver {
     }
 
     @Override
-    public void setSessionId(HttpServletRequest request,
-                             HttpServletResponse response,
-                             String sessionId) {
+    public void setSessionId(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            String sessionId) {
 
         String realm = normalize(realmResolver.resolveRealm(request));
-        String cookieName = cookiePrefix + "_" + realm;
+        String cookieName = "SSOSESSION_" + realm;
 
-        if (cookieSerializer instanceof DefaultCookieSerializer dcs) {
-            String original = dcs.getCookieName();
-            dcs.setCookieName(cookieName);
-            dcs.writeCookieValue(
-                    new CookieSerializer.CookieValue(request, response, sessionId)
-            );
-            dcs.setCookieName(original);
-        }
+        Cookie cookie = new Cookie(cookieName, sessionId);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(false); // true in prod HTTPS
+        cookie.setPath(request.getContextPath().isEmpty()
+                ? "/"
+                : request.getContextPath());
+
+        response.addCookie(cookie);
     }
 
     @Override
-    public void expireSession(HttpServletRequest request,
-                              HttpServletResponse response) {
+    public void expireSession(
+            HttpServletRequest request,
+            HttpServletResponse response) {
 
         String realm = normalize(realmResolver.resolveRealm(request));
-        String cookieName = cookiePrefix + "_" + realm;
+        String cookieName = "SSOSESSION_" + realm;
 
-        if (cookieSerializer instanceof DefaultCookieSerializer dcs) {
-            String original = dcs.getCookieName();
-            dcs.setCookieName(cookieName);
-            dcs.writeCookieValue(
-                    new CookieSerializer.CookieValue(request, response, "")
-            );
-            dcs.setCookieName(original);
-        }
+        Cookie cookie = new Cookie(cookieName, "");
+        cookie.setMaxAge(0);
+        cookie.setHttpOnly(true);
+        cookie.setPath(request.getContextPath().isEmpty()
+                ? "/"
+                : request.getContextPath());
+
+        response.addCookie(cookie);
     }
 
     private String normalize(String realm) {
