@@ -1,28 +1,18 @@
-package com.example.sso.security;
+package com.example.sso.config;
 
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
+import com.example.sso.security.RealmCookieHttpSessionIdResolver;
+import com.example.sso.security.RealmResolver;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.session.web.http.HttpSessionIdResolver;
 
-@Component
-public class DefaultRealmResolver implements RealmResolver {
+@Configuration
+public class SessionIdResolverConfig {
 
-    @Override
-    public String resolveRealm(HttpServletRequest request) {
+    @Bean
+    public HttpSessionIdResolver httpSessionIdResolver(
+            RealmResolver realmResolver) {
 
-        // 1) request parameter
-        String realm = request.getParameter("realm");
-        if (StringUtils.hasText(realm)) {
-            return realm.trim().toUpperCase();
-        }
-
-        // 2) header (optional)
-        realm = request.getHeader("X-REALM");
-        if (StringUtils.hasText(realm)) {
-            return realm.trim().toUpperCase();
-        }
-
-        // 3) fallback
-        return "DEFAULT";
+        return new RealmCookieHttpSessionIdResolver(realmResolver);
     }
 }
