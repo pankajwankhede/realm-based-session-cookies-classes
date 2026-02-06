@@ -15,45 +15,77 @@ public class RealmCookieHttpSessionIdResolver implements HttpSessionIdResolver {
 
     private final RealmResolver realmResolver;
     private final CookieSerializer cookieSerializer;
+    private final String cookiePrefix;
 
-    public RealmCookieHttpSessionIdResolver(RealmResolver realmResolver, CookieSerializer cookieSerializer) {
+    public RealmCookieHttpSessionIdResolver(
+            RealmResolver realmResolver,
+            CookieSerializer cookieSerializer,
+            String cookiePrefix
+    ) {
         this.realmResolver = realmResolver;
         this.cookieSerializer = cookieSerializer;
+        this.cookiePrefix = cookiePrefix;
     }
 
     @Override
     public List<String> resolveSessionIds(HttpServletRequest request) {
-        String realm = realmResolver.resolveRealm(request);
-        String cookieName = "SSOSESSION_" + realm;
 
-        if (request.getCookies() == null) return Collections.emptyList();
-        for (Cookie c : request.getCookies()) {
-            if (cookieName.equals(c.getName()) && StringUtils.hasText(c.getValue())) {
-                return List.of(c.getValue());
+        String realm = normalize(realmResolver.resolveRealm(request));
+        String cookieName = cookiePrefix + "_" + realm;
+
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return Collections.emptyList();
+        }
+
+        for (Cookie cookie : cookies) {
+            if (cookieName.equals(cookie.getName())
+                    && StringUtils.hasText(cookie.getValue())) {
+                return List.of(cookie.getValue());
             }
         }
         return Collections.emptyList();
     }
 
     @Override
-    public void setSessionId(HttpServletRequest request, HttpServletResponse response, String sessionId) {
+    public void setSessionId(HttpServletRequest request,
+                             HttpServletResponse response,
+                             String sessionId) {
+
+        String realm = normalize(realmResolver.resolveRealm(request));
+        String cookieName = cookiePrefix + "_" + realm;
+
         if (cookieSerializer instanceof DefaultCookieSerializer dcs) {
-            String realm = realmResolver.resolveRealm(request);
             String original = dcs.getCookieName();
-            dcs.setCookieName("SSOSESSION_" + realm);
-            dcs.writeCookieValue(new CookieSerializer.CookieValue(request, response, sessionId));
+            dcs.setCookieName(cookieName);
+            dcs.writeCookieValue(
+                    new CookieSerializer.CookieValue(request, response, sessionId)
+            );
             dcs.setCookieName(original);
         }
     }
 
     @Override
-    public void expireSession(HttpServletRequest request, HttpServletResponse response) {
+    public void expireSession(HttpServletRequest request,
+                              HttpServletResponse response) {
+
+        String realm = normalize(realmResolver.resolveRealm(request));
+        String cookieName = cookiePrefix + "_" + realm;
+
         if (cookieSerializer instanceof DefaultCookieSerializer dcs) {
-            String realm = realmResolver.resolveRealm(request);
             String original = dcs.getCookieName();
-            dcs.setCookieName("SSOSESSION_" + realm);
-            dcs.writeCookieValue(new CookieSerializer.CookieValue(request, response, ""));
+            dcs.setCookieName(cookieName);
+            dcs.writeCookieValue(
+                    new CookieSerializer.CookieValue(request, response, "")
+            );
             dcs.setCookieName(original);
         }
+    }
+
+    private String normalize(String realm) {
+        if (!StringUtils.hasText(realm)) {
+            return "DEFAULT";
+        }
+        return realm.trim().toUpperCase();
     }
 }
