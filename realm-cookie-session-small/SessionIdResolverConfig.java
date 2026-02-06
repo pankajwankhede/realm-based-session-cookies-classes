@@ -13,7 +13,12 @@ public class SessionIdResolverConfig {
     @Bean
     public HttpSessionIdResolver httpSessionIdResolver(
             RealmResolver realmResolver,
-            CookieSerializer cookieSerializer) {
-        return new RealmCookieHttpSessionIdResolver(realmResolver, cookieSerializer);
+            CookieSerializer cookieSerializer
+    ) {
+        return new RealmCookieHttpSessionIdResolver(
+                realmResolver,
+                cookieSerializer,
+                "SSOSESSION"
+        );
     }
 }
